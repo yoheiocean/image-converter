@@ -1,4 +1,6 @@
 :root {
+  --bg-top: #fbfcff;
+  --bg-mid: #eef3ff;
   --bg: #f2f4f8;
   --panel: #ffffff;
   --text: #1e2a39;
@@ -7,7 +9,52 @@
   --accent: #1262d6;
   --accent-soft: #e9f1ff;
   --danger: #be2336;
+  --panel-shadow: 0 1px 3px rgba(16, 29, 56, 0.04);
+  --github-text: #243246;
+  --github-bg: #ffffff;
+  --github-hover-border: #a3b7d4;
+  --dropzone-border: #8ea5cc;
+  --dropzone-bg: #f8fbff;
+  --input-bg: #ffffff;
+  --card-bg: #ffffff;
+  --media-bg: #fbfdff;
+  --meta-text: #37465a;
+  --button-disabled: #a7bfdc;
+  --theme-btn-bg: #ffffff;
+  --theme-btn-text: #1e2a39;
+  --theme-btn-border: #c6d2e5;
+  --theme-icon-sun: #d17b00;
+  --theme-icon-moon: #305fbe;
   --radius: 14px;
+}
+
+[data-theme="dark"] {
+  --bg-top: #1a2232;
+  --bg-mid: #141b2b;
+  --bg: #0f1420;
+  --panel: #161f30;
+  --text: #e4ebf5;
+  --muted: #a8b3c4;
+  --line: #2a364d;
+  --accent: #6ba6ff;
+  --accent-soft: #25364f;
+  --danger: #e25b6a;
+  --panel-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  --github-text: #d8e2f0;
+  --github-bg: #161f30;
+  --github-hover-border: #4a607f;
+  --dropzone-border: #56729d;
+  --dropzone-bg: #111b2d;
+  --input-bg: #111a2a;
+  --card-bg: #111a2a;
+  --media-bg: #0d1522;
+  --meta-text: #c7d0de;
+  --button-disabled: #5d7292;
+  --theme-btn-bg: #1b2740;
+  --theme-btn-text: #dfe8f7;
+  --theme-btn-border: #3b4f71;
+  --theme-icon-sun: #ffc95a;
+  --theme-icon-moon: #b7cbff;
 }
 
 * {
@@ -19,8 +66,48 @@ body {
   color: var(--text);
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   background:
-    radial-gradient(circle at 10% 0%, #fbfcff 0, #f2f4f8 42%),
-    linear-gradient(180deg, #eef3ff 0%, #f2f4f8 55%);
+    radial-gradient(circle at 10% 0%, var(--bg-top) 0, var(--bg) 42%),
+    linear-gradient(180deg, var(--bg-mid) 0%, var(--bg) 55%);
+}
+
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--theme-btn-border);
+  border-radius: 50%;
+  background: var(--theme-btn-bg);
+  color: var(--theme-btn-text);
+  box-shadow: var(--panel-shadow);
+}
+
+.theme-toggle:hover {
+  filter: brightness(1.05);
+}
+
+.theme-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  display: none;
+}
+
+.icon-sun {
+  color: var(--theme-icon-sun);
+}
+
+.icon-moon {
+  color: var(--theme-icon-moon);
+}
+
+.theme-toggle[data-next-theme="dark"] .icon-moon {
+  display: block;
+}
+
+.theme-toggle[data-next-theme="light"] .icon-sun {
+  display: block;
 }
 
 .app {
@@ -45,14 +132,14 @@ body {
   border: 1px solid var(--line);
   border-radius: 999px;
   text-decoration: none;
-  color: #243246;
-  background: #fff;
+  color: var(--github-text);
+  background: var(--github-bg);
   font-size: 0.9rem;
   transition: border-color 120ms ease, transform 120ms ease;
 }
 
 .github-link:hover {
-  border-color: #a3b7d4;
+  border-color: var(--github-hover-border);
   transform: translateY(-1px);
 }
 
@@ -62,13 +149,20 @@ body {
   fill: currentColor;
 }
 
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .header h1 {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: clamp(1.5rem, 2.4vw, 2rem);
 }
 
 .header p {
-  margin: 0;
+  margin: 8px 0 0;
   color: var(--muted);
 }
 
@@ -77,7 +171,7 @@ body {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px;
-  box-shadow: 0 1px 3px rgba(16, 29, 56, 0.04);
+  box-shadow: var(--panel-shadow);
 }
 
 .panel h2 {
@@ -86,11 +180,11 @@ body {
 }
 
 .dropzone {
-  border: 2px dashed #8ea5cc;
+  border: 2px dashed var(--dropzone-border);
   border-radius: 12px;
   padding: 24px;
   text-align: center;
-  background: #f8fbff;
+  background: var(--dropzone-bg);
   cursor: pointer;
   transition: border-color 120ms ease, background-color 120ms ease;
 }
@@ -135,7 +229,7 @@ select {
   border-radius: 9px;
   padding: 8px 10px;
   color: var(--text);
-  background: #fff;
+  background: var(--input-bg);
 }
 
 .checkbox-row {
@@ -165,7 +259,7 @@ button {
 
 #downloadAllBtn:disabled,
 .download-btn:disabled {
-  background: #a7bfdc;
+  background: var(--button-disabled);
   cursor: not-allowed;
 }
 
@@ -184,7 +278,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px;
-  background: #fff;
+  background: var(--card-bg);
 }
 
 .card-header {
@@ -225,7 +319,7 @@ img {
   object-fit: contain;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fbfdff;
+  background: var(--media-bg);
 }
 
 .original-preview,
@@ -236,7 +330,7 @@ img {
 .meta {
   margin: 9px 0 0;
   font-size: 0.84rem;
-  color: #37465a;
+  color: var(--meta-text);
 }
 
 .card-actions {

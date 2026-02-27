@@ -7,6 +7,7 @@ const ACCEPTED_MIME_TYPES = new Set([
 ]);
 const ACCEPTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "heic", "heif"]);
 const HEIC_EXTENSIONS = new Set(["heic", "heif"]);
+const THEME_STORAGE_KEY = "image-converter-theme";
 
 const state = {
   items: [],
@@ -45,7 +46,53 @@ const els = {
   lightboxStage: document.querySelector(".lightbox-stage"),
   lightboxImage: document.getElementById("lightboxImage"),
   lightboxMeta: document.getElementById("lightboxMeta"),
+  themeToggle: document.getElementById("themeToggle"),
 };
+
+function getSystemPreferredTheme() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function getStoredTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    return saved === "dark" || saved === "light" ? saved : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function persistTheme(theme) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch (error) {
+    // Ignore storage errors and keep theme only for the current session.
+  }
+}
+
+function getInitialTheme() {
+  return getStoredTheme() || getSystemPreferredTheme();
+}
+
+function applyTheme(theme) {
+  const normalizedTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = normalizedTheme;
+
+  if (!els.themeToggle) {
+    return;
+  }
+  const nextTheme = normalizedTheme === "dark" ? "light" : "dark";
+  els.themeToggle.dataset.nextTheme = nextTheme;
+  els.themeToggle.setAttribute("aria-label", `Switch to ${nextTheme} mode`);
+  els.themeToggle.setAttribute("aria-pressed", normalizedTheme === "dark" ? "true" : "false");
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  const next = current === "dark" ? "light" : "dark";
+  applyTheme(next);
+  persistTheme(next);
+}
 
 function bytesToHuman(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) {
@@ -658,9 +705,14 @@ function bindEvents() {
   }
 
   els.downloadAllBtn.addEventListener("click", downloadAll);
+
+  if (els.themeToggle) {
+    els.themeToggle.addEventListener("click", toggleTheme);
+  }
 }
 
 function init() {
+  applyTheme(getInitialTheme());
   setResizeVisibility();
   updateQualityAvailability();
   updateSummary();
