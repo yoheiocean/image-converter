@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Converter</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <h1>Image Converter</h1>
+      <p>Upload JPG, PNG, or WEBP files and convert them in your browser.</p>
+    </header>
+
+    <section class="panel upload-panel">
+      <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload images">
+        <p><strong>Drop images here</strong> or click to select files</p>
+        <p class="subtle">Supported: .jpg, .jpeg, .png, .webp</p>
+      </div>
+      <input id="fileInput" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple hidden>
+    </section>
+
+    <section class="panel controls-panel">
+      <h2>Conversion Settings</h2>
+      <div class="controls-grid">
+        <label>
+          Output Format
+          <select id="formatSelect">
+            <option value="jpeg">JPEG (.jpg)</option>
+            <option value="png">PNG (.png)</option>
+            <option value="webp">WEBP (.webp)</option>
+          </select>
+        </label>
+
+        <label>
+          Quality: <span id="qualityValue">85</span>
+          <input id="qualityInput" type="range" min="1" max="100" value="85">
+        </label>
+
+        <label>
+          Resize Mode
+          <select id="resizeMode">
+            <option value="original">Keep Original</option>
+            <option value="percent">Scale by Percent</option>
+            <option value="exact">Set Width / Height</option>
+          </select>
+        </label>
+
+        <label id="percentWrap">
+          Scale Percent
+          <input id="percentInput" type="number" min="1" max="500" step="1" value="100">
+        </label>
+
+        <label id="widthWrap">
+          Width (px)
+          <input id="widthInput" type="number" min="1" step="1" placeholder="e.g. 1920">
+        </label>
+
+        <label id="heightWrap">
+          Height (px)
+          <input id="heightInput" type="number" min="1" step="1" placeholder="e.g. 1080">
+        </label>
+
+        <label class="checkbox-row">
+          <input id="keepAspectInput" type="checkbox" checked>
+          Keep aspect ratio
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="downloadAllBtn" type="button" disabled>Download All Converted Files</button>
+      </div>
+      <p id="summary" class="subtle">No images loaded.</p>
+    </section>
+
+    <section class="panel preview-panel">
+      <h2>Preview</h2>
+      <div id="cards" class="cards"></div>
+    </section>
+  </main>
+
+  <template id="cardTemplate">
+    <article class="card">
+      <div class="card-header">
+        <h3 class="file-name"></h3>
+        <button class="remove-btn" type="button">Remove</button>
+      </div>
+      <div class="thumbs">
+        <figure>
+          <figcaption>Original</figcaption>
+          <img class="original-preview" alt="Original preview">
+        </figure>
+        <figure>
+          <figcaption>Converted</figcaption>
+          <img class="converted-preview" alt="Converted preview">
+        </figure>
+      </div>
+      <p class="meta original-meta"></p>
+      <p class="meta converted-meta">Converting preview...</p>
+      <div class="card-actions">
+        <button class="download-btn" type="button" disabled>Download</button>
+      </div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
