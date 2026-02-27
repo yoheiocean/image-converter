@@ -17,6 +17,10 @@ You can upload one or many images, choose output format, resize, adjust quality,
 - Per-image download and “Download All Converted Files”
 - Fully client-side conversion (no backend required)
 
+## Screenshot
+
+![Image Converter UI](assets/image-converter-ui.png)
+
 ## Tech Stack
 
 - Plain HTML/CSS/JavaScript
