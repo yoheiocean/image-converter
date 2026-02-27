@@ -8,11 +8,14 @@ const ACCEPTED_MIME_TYPES = new Set([
 const ACCEPTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "heic", "heif"]);
 const HEIC_EXTENSIONS = new Set(["heic", "heif"]);
 const THEME_STORAGE_KEY = "image-converter-theme";
+const DOWNLOAD_ALL_DEFAULT_LABEL = "Download All Converted Files";
+const DOWNLOAD_ALL_WORKING_LABEL = "Preparing ZIP...";
 
 const state = {
   items: [],
   jobId: 0,
   nextId: 1,
+  isZippingAll: false,
   lightbox: {
     isOpen: false,
     itemId: null,
@@ -312,7 +315,7 @@ function updateSummary() {
 
 function updateDownloadAllState() {
   const ready = state.items.length > 0 && state.items.every((item) => item.converted?.blob);
-  els.downloadAllBtn.disabled = !ready;
+  els.downloadAllBtn.disabled = !ready || state.isZippingAll;
 }
 
 function getCardForItemId(itemId) {
@@ -618,17 +621,97 @@ function baseName(filename) {
   return filename.slice(0, idx);
 }
 
+function extensionFromMime(mime) {
+  if (mime === "image/png") {
+    return "png";
+  }
+  if (mime === "image/webp") {
+    return "webp";
+  }
+  if (mime === "image/jpeg") {
+    return "jpg";
+  }
+  return getMimeAndExtension(getSettings().format).ext;
+}
+
+function sanitizeFilenamePart(name) {
+  return (name || "")
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getZipDownloadName() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  return `converted-images-${y}${m}${d}-${hh}${mm}${ss}.zip`;
+}
+
 function downloadConvertedItem(item) {
-  const { ext } = getMimeAndExtension(getSettings().format);
+  const ext = extensionFromMime(item.converted?.blob?.type || "");
   downloadBlob(item.converted.blob, `${baseName(item.file.name)}-converted.${ext}`);
 }
 
-function downloadAll() {
-  for (const item of state.items) {
-    if (!item.converted?.blob) {
-      continue;
+async function downloadAll() {
+  if (state.isZippingAll) {
+    return;
+  }
+
+  const convertedItems = state.items.filter((item) => item.converted?.blob);
+  if (convertedItems.length === 0) {
+    return;
+  }
+
+  if (typeof window.JSZip !== "function") {
+    els.summary.textContent = "ZIP download is unavailable right now. Please reload and try again.";
+    return;
+  }
+
+  const originalLabel = els.downloadAllBtn.textContent || DOWNLOAD_ALL_DEFAULT_LABEL;
+  state.isZippingAll = true;
+  els.downloadAllBtn.textContent = DOWNLOAD_ALL_WORKING_LABEL;
+  updateDownloadAllState();
+
+  try {
+    const zip = new window.JSZip();
+    const seenNames = new Set();
+
+    for (let i = 0; i < convertedItems.length; i += 1) {
+      const item = convertedItems[i];
+      const ext = extensionFromMime(item.converted.blob.type || "");
+      const rawBase = baseName(item.file.name) || `image-${i + 1}`;
+      const safeBase = sanitizeFilenamePart(rawBase) || `image-${i + 1}`;
+      const stem = `${safeBase}-converted`;
+
+      let filename = `${stem}.${ext}`;
+      let suffix = 2;
+      while (seenNames.has(filename.toLowerCase())) {
+        filename = `${stem}-${suffix}.${ext}`;
+        suffix += 1;
+      }
+      seenNames.add(filename.toLowerCase());
+      zip.file(filename, item.converted.blob);
     }
-    downloadConvertedItem(item);
+
+    const zipBlob = await zip.generateAsync({
+      type: "blob",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 },
+    });
+
+    downloadBlob(zipBlob, getZipDownloadName());
+    els.summary.textContent = `${convertedItems.length} converted image(s) were downloaded as a ZIP file.`;
+  } catch (error) {
+    els.summary.textContent = "Could not create ZIP file. Please try again.";
+  } finally {
+    state.isZippingAll = false;
+    els.downloadAllBtn.textContent = originalLabel;
+    updateDownloadAllState();
   }
 }
 
@@ -704,7 +787,9 @@ function bindEvents() {
     input.addEventListener("change", debouncedRefresh);
   }
 
-  els.downloadAllBtn.addEventListener("click", downloadAll);
+  els.downloadAllBtn.addEventListener("click", () => {
+    void downloadAll();
+  });
 
   if (els.themeToggle) {
     els.themeToggle.addEventListener("click", toggleTheme);
