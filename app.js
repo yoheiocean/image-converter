@@ -1,9 +1,25 @@
-const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ACCEPTED_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+const ACCEPTED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "heic", "heif"]);
+const HEIC_EXTENSIONS = new Set(["heic", "heif"]);
 
 const state = {
   items: [],
   jobId: 0,
   nextId: 1,
+  lightbox: {
+    isOpen: false,
+    itemId: null,
+    variant: "original",
+    width: 0,
+    height: 0,
+    sourceLabel: "Original",
+  },
 };
 
 const els = {
@@ -24,6 +40,11 @@ const els = {
   heightWrap: document.getElementById("heightWrap"),
   downloadAllBtn: document.getElementById("downloadAllBtn"),
   summary: document.getElementById("summary"),
+  lightbox: document.getElementById("lightbox"),
+  lightboxClose: document.getElementById("lightboxClose"),
+  lightboxStage: document.querySelector(".lightbox-stage"),
+  lightboxImage: document.getElementById("lightboxImage"),
+  lightboxMeta: document.getElementById("lightboxMeta"),
 };
 
 function bytesToHuman(bytes) {
@@ -39,6 +60,25 @@ function bytesToHuman(bytes) {
   }
   const rounded = idx === 0 ? Math.round(n).toString() : n.toFixed(2);
   return `${rounded} ${units[idx]}`;
+}
+
+function getFileExtension(filename) {
+  const idx = filename.lastIndexOf(".");
+  if (idx < 0 || idx === filename.length - 1) {
+    return "";
+  }
+  return filename.slice(idx + 1).toLowerCase();
+}
+
+function isHeicFile(file) {
+  const ext = getFileExtension(file.name);
+  const mime = (file.type || "").toLowerCase();
+  return HEIC_EXTENSIONS.has(ext) || mime.includes("heic") || mime.includes("heif");
+}
+
+function isSupportedFile(file) {
+  const ext = getFileExtension(file.name);
+  return ACCEPTED_MIME_TYPES.has(file.type) || ACCEPTED_EXTENSIONS.has(ext);
 }
 
 function getMimeAndExtension(format) {
@@ -103,15 +143,15 @@ function getOutputDimensions(originalWidth, originalHeight, settings) {
   return { width: w, height: h };
 }
 
-async function loadImageFromFile(file) {
-  const url = URL.createObjectURL(file);
+async function loadImageFromBlob(blob, sourceName) {
+  const url = URL.createObjectURL(blob);
   const img = new Image();
   img.decoding = "async";
   img.src = url;
 
   await new Promise((resolve, reject) => {
     img.onload = () => resolve();
-    img.onerror = () => reject(new Error(`Could not load ${file.name}`));
+    img.onerror = () => reject(new Error(`Could not load ${sourceName}`));
   });
 
   return {
@@ -120,6 +160,34 @@ async function loadImageFromFile(file) {
     height: img.naturalHeight,
     image: img,
   };
+}
+
+function loadImageFromFile(file) {
+  return loadImageFromBlob(file, file.name);
+}
+
+async function decodeHeicBlob(file) {
+  const decoder = window.heic2any;
+  if (typeof decoder !== "function") {
+    throw new Error("HEIC decoder failed to load. Check network access and retry.");
+  }
+  const output = await decoder({
+    blob: file,
+    toType: "image/png",
+  });
+  const decoded = Array.isArray(output) ? output[0] : output;
+  if (!(decoded instanceof Blob)) {
+    throw new Error("HEIC decode did not return a valid image.");
+  }
+  return decoded;
+}
+
+async function loadSourceImage(file) {
+  if (!isHeicFile(file)) {
+    return loadImageFromFile(file);
+  }
+  const decodedBlob = await decodeHeicBlob(file);
+  return loadImageFromBlob(decodedBlob, file.name);
 }
 
 function blobFromCanvas(canvas, mime, quality) {
@@ -204,13 +272,103 @@ function getCardForItemId(itemId) {
   return els.cards.querySelector(`[data-item-id="${itemId}"]`);
 }
 
+function getItemById(itemId) {
+  return state.items.find((item) => item.id === itemId) || null;
+}
+
+function getLightboxSource(item, variant) {
+  if (variant === "converted" && item.converted?.previewUrl) {
+    return {
+      src: item.converted.previewUrl,
+      width: item.converted.width,
+      height: item.converted.height,
+      label: "Converted",
+    };
+  }
+  if (variant === "converted" && !item.converted?.previewUrl) {
+    return {
+      src: item.original.url,
+      width: item.original.width,
+      height: item.original.height,
+      label: "Original (converted not ready yet)",
+    };
+  }
+  return {
+    src: item.original.url,
+    width: item.original.width,
+    height: item.original.height,
+    label: "Original",
+  };
+}
+
+function updateLightboxSizing() {
+  if (!state.lightbox.isOpen) {
+    return;
+  }
+
+  const w = state.lightbox.width;
+  const h = state.lightbox.height;
+  if (!w || !h) {
+    return;
+  }
+
+  const stageStyle = window.getComputedStyle(els.lightboxStage);
+  const padX = Number.parseFloat(stageStyle.paddingLeft || "0") + Number.parseFloat(stageStyle.paddingRight || "0");
+  const padY = Number.parseFloat(stageStyle.paddingTop || "0") + Number.parseFloat(stageStyle.paddingBottom || "0");
+  const maxW = Math.max(1, Math.floor(els.lightboxStage.clientWidth - padX - 2));
+  const maxH = Math.max(1, Math.floor(els.lightboxStage.clientHeight - padY - 2));
+  const scale = Math.min(1, maxW / w, maxH / h);
+  const displayW = Math.max(1, Math.round(w * scale));
+  const displayH = Math.max(1, Math.round(h * scale));
+  const scalePercent = Math.round(scale * 100);
+
+  els.lightboxImage.style.width = `${displayW}px`;
+  els.lightboxImage.style.height = `${displayH}px`;
+  const scaleText = scalePercent === 100 ? "100% (actual size)" : `${scalePercent}% (fit to browser)`;
+  els.lightboxMeta.textContent =
+    `${state.lightbox.sourceLabel}: ${w}x${h}px | shown ${displayW}x${displayH}px | scale ${scaleText}`;
+}
+
+function openLightbox(itemId, variant) {
+  const item = getItemById(itemId);
+  if (!item) {
+    return;
+  }
+
+  const source = getLightboxSource(item, variant);
+  state.lightbox.isOpen = true;
+  state.lightbox.itemId = itemId;
+  state.lightbox.variant = variant;
+  state.lightbox.width = source.width;
+  state.lightbox.height = source.height;
+  state.lightbox.sourceLabel = source.label;
+  els.lightboxImage.src = source.src;
+  els.lightbox.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  requestAnimationFrame(() => requestAnimationFrame(updateLightboxSizing));
+}
+
+function closeLightbox() {
+  state.lightbox.isOpen = false;
+  state.lightbox.itemId = null;
+  state.lightbox.width = 0;
+  state.lightbox.height = 0;
+  state.lightbox.sourceLabel = "Original";
+  els.lightbox.classList.add("hidden");
+  els.lightboxImage.removeAttribute("src");
+  els.lightboxMeta.textContent = "";
+  document.body.style.overflow = "";
+}
+
 function renderOneCard(item) {
   const node = els.cardTemplate.content.firstElementChild.cloneNode(true);
   node.dataset.itemId = String(item.id);
 
   node.querySelector(".file-name").textContent = item.file.name;
-  node.querySelector(".original-preview").src = item.original.url;
-  node.querySelector(".converted-preview").src = item.original.url;
+  const originalPreview = node.querySelector(".original-preview");
+  const convertedPreview = node.querySelector(".converted-preview");
+  originalPreview.src = item.original.url;
+  convertedPreview.src = item.original.url;
   node.querySelector(".original-meta").textContent =
     `${item.original.width}x${item.original.height}px | ${bytesToHuman(item.file.size)}`;
 
@@ -222,6 +380,14 @@ function renderOneCard(item) {
     if (item.converted?.blob) {
       downloadConvertedItem(item);
     }
+  });
+
+  originalPreview.addEventListener("click", () => {
+    openLightbox(item.id, "original");
+  });
+
+  convertedPreview.addEventListener("click", () => {
+    openLightbox(item.id, "converted");
   });
 
   els.cards.appendChild(node);
@@ -246,6 +412,14 @@ function updateConvertedCard(item, errorMessage) {
   convertedMeta.textContent =
     `${item.converted.width}x${item.converted.height}px | estimated ${bytesToHuman(item.converted.blob.size)}`;
   downloadBtn.disabled = false;
+
+  if (state.lightbox.isOpen && state.lightbox.itemId === item.id && state.lightbox.variant === "converted") {
+    state.lightbox.width = item.converted.width;
+    state.lightbox.height = item.converted.height;
+    state.lightbox.sourceLabel = "Converted";
+    els.lightboxImage.src = item.converted.previewUrl;
+    requestAnimationFrame(updateLightboxSizing);
+  }
 }
 
 function revokeConvertedUrl(item) {
@@ -263,6 +437,9 @@ function removeItem(itemId) {
   const index = state.items.findIndex((i) => i.id === itemId);
   if (index < 0) {
     return;
+  }
+  if (state.lightbox.isOpen && state.lightbox.itemId === itemId) {
+    closeLightbox();
   }
   const [item] = state.items.splice(index, 1);
   cleanupItem(item);
@@ -340,15 +517,16 @@ function debounce(fn, delayMs) {
 const debouncedRefresh = debounce(refreshAllPreviews, 220);
 
 async function handleNewFiles(fileList) {
-  const files = Array.from(fileList ?? []).filter((f) => ACCEPTED_TYPES.has(f.type));
+  const files = Array.from(fileList ?? []).filter((f) => isSupportedFile(f));
   if (files.length === 0) {
+    els.summary.textContent = "No supported files selected. Use JPG, PNG, WEBP, HEIC, or HEIF.";
     return;
   }
 
   const loadedItems = [];
   for (const file of files) {
     try {
-      const original = await loadImageFromFile(file);
+      const original = await loadSourceImage(file);
       loadedItems.push({
         id: state.nextId++,
         file,
@@ -361,6 +539,7 @@ async function handleNewFiles(fileList) {
   }
 
   if (loadedItems.length === 0) {
+    els.summary.textContent = "Selected files could not be decoded. Please retry with different files.";
     return;
   }
 
@@ -433,6 +612,28 @@ function bindEvents() {
     event.preventDefault();
     els.dropzone.classList.remove("is-dragging");
     await handleNewFiles(event.dataTransfer?.files);
+  });
+
+  els.lightboxClose.addEventListener("click", closeLightbox);
+  els.lightbox.addEventListener("click", (event) => {
+    if (event.target === els.lightbox) {
+      closeLightbox();
+    }
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.lightbox.isOpen) {
+      closeLightbox();
+    }
+  });
+  window.addEventListener("resize", () => {
+    if (state.lightbox.isOpen) {
+      updateLightboxSizing();
+    }
+  });
+  els.lightboxImage.addEventListener("load", () => {
+    if (state.lightbox.isOpen) {
+      updateLightboxSizing();
+    }
   });
 
   els.qualityInput.addEventListener("input", () => {

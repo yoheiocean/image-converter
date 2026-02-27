@@ -1,0 +1,7 @@
+services:
+  image-converter:
+    build: .
+    container_name: image-converter
+    restart: unless-stopped
+    ports:
+      - "8080:80"
